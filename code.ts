@@ -180,6 +180,7 @@ figma.ui.onmessage = async (pluginMessage: { waveVariant: keyof typeof waveVaria
   // check filetype of pluginMessage.audioData
   // if it's a string, convert it to a Uint8Array
   // if it's a Uint8Array, use it as is
+  
   let audioData: Uint8Array;
   if (typeof pluginMessage.audioData === "string") {
     audioData = new Uint8Array(pluginMessage.audioData.split(",").map((byte) => parseInt(byte)));
@@ -187,6 +188,7 @@ figma.ui.onmessage = async (pluginMessage: { waveVariant: keyof typeof waveVaria
     audioData = pluginMessage.audioData;
   }
 
+  console.log(pluginMessage.audioData);
   console.log(audioData);
 
   const selection = figma.currentPage.selection;
@@ -217,6 +219,7 @@ figma.ui.onmessage = async (pluginMessage: { waveVariant: keyof typeof waveVaria
       let y = height / 2;
       const t = (i / (numPoints - 1)) * Math.PI * 2;
 
+      // using audioData manipulate the wave
       const waveFunctions = {
         "1": () => (2 / Math.PI) * Math.asin(Math.sin(t * 10)) * (height / 4),
         "2": () => Math.sin(t * 10) * (height / 12),
