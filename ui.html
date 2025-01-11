@@ -2055,13 +2055,13 @@
     </div>
   </div>
 
-  <input type="file" name="audio" id="audio" accept="audio/*" src="./recording.m4a">
+  <input type="file" name="audio" id="audio" accept="audio/*" class="input__field" />
   <label for="audio" class="label">Suuported files (mp4a, mp3, wav)</label>
 
   <button class="button button--primary" id="submit-post">Submit</button>
   
   
-  <script>
+  <!-- <script>
   document.getElementById('submit-post').onclick = () => {  
     const waveVariant = document.querySelector('input[name="radioGroup"]:checked').value;
     const audioFile = document.getElementById('audio').files[0];
@@ -2075,10 +2075,48 @@
 
     reader.onload = function(event) {
       const audioData = event.target.result; // Base64 or binary data of the file
-      console.log("audioData" , audioData);
       parent.postMessage({ pluginMessage: { waveVariant, audioData, fileName: audioFile.name } }, '*');
     };
 
     reader.readAsDataURL(audioFile); // Converts the file to Base64
   };
-  </script>
+  </script> -->
+  
+<!-- v2 -->
+<script>
+  document.getElementById('submit-post').onclick = async () => {
+    const waveVariant = document.querySelector('input[name="radioGroup"]:checked').value;
+    const audioFile = document.getElementById('audio').files[0];
+
+    if (!audioFile) {
+      alert("Please select an audio file.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = async function(event) {
+      const arrayBuffer = event.target.result; // Raw file data
+
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        const channelData = audioBuffer.getChannelData(0); // Get first channel data (Float32Array)
+        const audioArray = Array.from(channelData); // Convert Float32Array to regular array
+
+        parent.postMessage({ 
+          pluginMessage: { 
+            waveVariant, 
+            audioArray, 
+            fileName: audioFile.name 
+          } 
+        }, '*');
+      } catch (error) {
+        alert("Error processing audio file: " + error.message);
+      }
+    };
+
+    reader.readAsArrayBuffer(audioFile); // Reads file as an ArrayBuffer for decoding
+  };
+</script>
