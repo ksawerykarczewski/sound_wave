@@ -1,20 +1,12 @@
 figma.loadAllPagesAsync();
-figma.showUI(__html__, { themeColors: true });
-
-figma.ui.resize(400, 300);
+figma.showUI(__html__);
+figma.ui.resize(305, 180);
 
 const waveVariants = {
-  "1": { name: "Type=triangle", strokeColor: { r: 1, g: 0, b: 0 } }, // Red
-  "2": { name: "Type=sine", strokeColor: { r: 0, g: 1, b: 0 } }, // Green
-  "3": { name: "Type=square", strokeColor: { r: 0, g: 0, b: 1 } }, // Blue
-  "4": { name: "Type=sawtooth", strokeColor: { r: 1, g: 1, b: 0 } }, // Yellow
+  "raw": { name: "Type=raw", strokeColor: { r: 0, g: 0, b: 1 } }, // Blue
 };
 
-figma.ui.onmessage = async (pluginMessage: { 
-  waveVariant: keyof typeof waveVariants, 
-  audioArray: number[], 
-  fileName: string 
-}) => {
+figma.ui.onmessage = async (pluginMessage) => {
   await figma.loadAllPagesAsync();
 
   console.log("Received audio data array:", pluginMessage.audioArray);
@@ -25,61 +17,40 @@ figma.ui.onmessage = async (pluginMessage: {
     return;
   }
 
-  const frame = selection[0] as FrameNode;
-  frame.layoutMode = "VERTICAL";
-  frame.primaryAxisSizingMode = "AUTO";
-  frame.counterAxisSizingMode = "AUTO";
-  frame.itemSpacing = 0;
-  frame.verticalPadding = 10;
-  frame.horizontalPadding = 10;
+  const outerFrame = selection[0];
+  
+  const innerFrame = figma.createFrame();
+  innerFrame.layoutMode = "VERTICAL";
+  innerFrame.primaryAxisSizingMode = "AUTO";
+  innerFrame.counterAxisSizingMode = "AUTO";
+  innerFrame.itemSpacing = 0;
+  innerFrame.verticalPadding = 0;
+  innerFrame.horizontalPadding = 0;
+  innerFrame.resize(outerFrame.width, outerFrame.height);
+  outerFrame.appendChild(innerFrame);
 
-  const width = frame.width - 4;
-  const height = frame.height - 4;
+  const width = innerFrame.width;
+  const height = innerFrame.height;
 
-  const waveVariant = pluginMessage.waveVariant;
-  const selectedWave = waveVariants[waveVariant] || waveVariants["1"];
+  const waveVariant = "raw"; // Hardcoded for now, can be extended later
+  const selectedWave = waveVariants[waveVariant];
 
-  const targetPoints = 1000; // Ideal number of points for clarity
+  const targetPoints = 1000;
   const downsampleFactor = Math.max(1, Math.floor(pluginMessage.audioArray.length / targetPoints));
-
-  // Downsampled array (pick every N-th value)
-  const downsampledArray = pluginMessage.audioArray.filter((_, index) => index % downsampleFactor === 0);
+  const downsampledArray = pluginMessage.audioArray.filter((_: number, index: number) => index % downsampleFactor === 0);
 
   const numPoints = downsampledArray.length;
-  const points: [number, number][] = [];
+  const points = [];
 
   for (let i = 0; i < numPoints; i++) {
     const x = (i / (numPoints - 1)) * width;
     let y = height / 2;
     
-    const normalizedY = downsampledArray[i] * (height / 3); // Scale amplitude
-
-    // Time variable for wave calculations
+    const normalizedY = downsampledArray[i] * (height / 3);
     const t = (i / numPoints) * Math.PI * 2;
-
-    let modifiedY;
-
-    switch (waveVariant) {
-      case "1": // Triangle Wave (Sharper Peaks)
-        modifiedY = (2 / Math.PI) * Math.asin(Math.sin(t * 8)) * normalizedY * 1.5;
-        break;
-
-      case "2": // Sine Wave (Smooth)
-        modifiedY = Math.sin(t * 8) * normalizedY;
-        break;
-
-      case "3": // Square Wave (More Defined Jumps)
-        modifiedY = Math.sign(Math.sin(t * 6)) * (height / 3);
-        break;
-
-      case "4": // Sawtooth Wave (Sharper Inclines)
-        modifiedY = ((t * 6) % (Math.PI * 2) - Math.PI) * (normalizedY / Math.PI) * 2;
-        break;
-
-      default:
-        modifiedY = normalizedY; // Default raw audio data
-    }
-
+    
+    const modifiedY = (2 / Math.PI) * Math.asin(Math.sin(t * 8)) * normalizedY * 1.5;
+    
     y += modifiedY;
     points.push([x, y]);
   }
@@ -87,19 +58,17 @@ figma.ui.onmessage = async (pluginMessage: {
   const polyline = figma.createVector();
   const vectorNetwork = {
     vertices: points.map(([x, y]) => ({ x, y, strokeCap: "ROUND" as StrokeCap })),
-    segments: points
-      .map((_, i) => (i < points.length - 1 ? { start: i, end: i + 1 } : null))
-      .filter(Boolean) as { start: number; end: number }[],
+    segments: points.map((_, i) => (i < points.length - 1 ? { start: i, end: i + 1 } : null)).filter((segment): segment is { start: number; end: number } => segment !== null),
   };
 
   await polyline.setVectorNetworkAsync(vectorNetwork);
 
   polyline.strokeWeight = 2;
   polyline.strokes = [{ type: "SOLID", color: selectedWave.strokeColor }];
-  polyline.x = frame.x;
-  polyline.y = frame.y;
+  polyline.x = innerFrame.x;
+  polyline.y = innerFrame.y;
   polyline.resize(width, height);
-  frame.appendChild(polyline);
+  innerFrame.appendChild(polyline);
 
   figma.closePlugin();
 };
